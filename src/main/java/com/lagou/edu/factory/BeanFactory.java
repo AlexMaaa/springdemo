@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,11 +108,21 @@ public class BeanFactory {
         try {
             for (Class<?> clazz : set) {
                 String value = clazz.getDeclaredAnnotation(Service.class).value();
-                if (StringUtils.isEmptyOrWhitespaceOnly(value)) {
-                    value = clazz.getSimpleName();
-                }
                 Object o = clazz.newInstance();
-                map.put(value, o);
+                if (!StringUtils.isEmptyOrWhitespaceOnly(value)) {
+                    //key为beanId
+                    map.put(value, o);
+                }
+                //类型
+                Type[] genericInterfaces = clazz.getGenericInterfaces();
+                if (genericInterfaces != null && genericInterfaces.length > 0) {
+                    //有接口
+                    for (Type type : genericInterfaces) {
+                        map.put(type.getTypeName(), o);
+                    }
+                    continue;
+                }
+                map.put(clazz.getName(), o);
             }
             autowire();
             for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -119,7 +130,7 @@ public class BeanFactory {
                 Class<?> clazz = v.getClass();
                 String value = clazz.getDeclaredAnnotation(Service.class).value();
                 if (StringUtils.isEmptyOrWhitespaceOnly(value)) {
-                    value = clazz.getSimpleName();
+                    value = clazz.getName();
                 }
                 if (clazz.isAnnotationPresent(Transactional.class)) {
                     Class<?>[] interfaces = clazz.getInterfaces();
@@ -146,7 +157,9 @@ public class BeanFactory {
             for (Field field : declaredFields) {
                 if (field.isAnnotationPresent(Autowired.class)) {
                     field.setAccessible(true);
-                    field.set(value, map.get(field.getName()));
+                    String name = field.getType().getName();
+                    Object o = map.get(name);
+                    field.set(value, o);
                 }
             }
         }
